@@ -252,8 +252,11 @@ const uploadfile = async (req, res) => {
 
     // Save the updated product
     const updatedProduct = await existingProduct.save();
+
     const imageFullPath = `https://example.com/${imageUrl}`;
 
+    console.log(imageFullPath);
+    return false;
 
     res.json({
       updatedProduct: { ...updatedProduct._doc, images: [imageFullPath] },
