@@ -255,8 +255,6 @@ const uploadfile = async (req, res) => {
 
     const imageFullPath = `https://example.com/${imageUrl}`;
 
-    console.log(imageFullPath);
-    return false;
 
     res.json({
       updatedProduct: { ...updatedProduct._doc, images: [imageFullPath] },
