@@ -11,7 +11,7 @@ const blogschema = mongoose.Schema({
     },
     description:{
       type:String,
-      required:true
+      required:truex
     },
     category:{
       type:String,

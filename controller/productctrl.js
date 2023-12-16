@@ -230,11 +230,9 @@ const uploadfile = async (req, res) => {
     
   try {
     const images = req.files;
-  
-     const imageUrl = images.map((item)=> item.path)
-     const f = imageUrl.value;
-     
-    
+
+    const imageUrls = images.map((item) => `https://example.com/${item.path}`);
+
     const { prodid } = req.body;
 
     // Find the existing product by ID
@@ -245,21 +243,15 @@ const uploadfile = async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    existingProduct.images = existingProduct.images.concat(imageUrl);
-
-    // Add the uploaded image URL to the images array of the existing product
-    existingProduct.images.push(imageUrl);
+    existingProduct.images = existingProduct.images.concat(imageUrls);
+    
 
     // Save the updated product
-    const updatedProduct = await existingProduct.save();
-
-    const imageFullPath = `https://example.com/${imageUrl}`;
-
+    const updatedBlog = await existingProduct.save();
 
     res.json({
-      updatedProduct: { ...updatedProduct._doc, images: [imageFullPath] },
+      updatedBlog: { ...updatedBlog._doc, images: imageUrls },
     });
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal Server Error' });

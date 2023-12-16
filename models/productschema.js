@@ -30,14 +30,15 @@ var productschema = new mongoose.Schema({
         type:String,
         required:true,
     },
-    quantity :{
-        type:String,
-        required:true,
-    },
-    sold :{
-        type:String,
-        default:0,
-    },
+    quantity: {
+        type: Number,
+        required: true,
+      },
+      sold: {
+        type: Number,
+        default: 0,
+      },
+  
     images :[
         {
               type: [String],

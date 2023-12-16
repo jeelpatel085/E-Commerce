@@ -1,12 +1,20 @@
 require("../config/database");
+
 const con = require("../models/schema");
+const Cart = require("../models/cartschema");
+const Product = require("../models/productschema");
+const Coupon = require("../models/couponschema");
+const uniqid = require('uniqid'); 
+const order = require('../models/orderschema')
+
+
 const generateToken = require("../auth/generateToken");
 const refreshtoken = require("../auth/refreshtoken");
 const validatemongodbid = require("../util/validatemongodbid");
 const jwt = require("jsonwebtoken"); // Import the 'jsonwebtoken' library
 
 const mongoose = require("mongoose");
-const crypto = require('crypto')
+const crypto = require("crypto");
 
 const bcrypt = require("bcrypt");
 const sendemail = require("./emailctrl");
@@ -305,8 +313,6 @@ const unblockuser = async (req, res) => {
 //   }
 // };
 
-
-
 const updatepassword = async (req, res) => {
   const { _id } = req.userData;
   const { password } = req.body;
@@ -320,22 +326,17 @@ const updatepassword = async (req, res) => {
   }
 };
 
-
-
-
-
-
 const forgotpasswordtoken = async (req, res) => {
   const email = req.body.email; // Ensure you are retrieving the email correctly
 
   if (!email) {
-    return res.status(500).json('Email is required');
+    return res.status(500).json("Email is required");
   }
 
   const user = await con.findOne({ email });
 
   if (!user) {
-    return res.status(500).json('Invalid email');
+    return res.status(500).json("Invalid email");
   }
 
   try {
@@ -346,8 +347,8 @@ const forgotpasswordtoken = async (req, res) => {
     const resetUrl = `hey follow this link for reset password <a href="http://localhost:2000/reset-password/${token}">Click Here</a>`;
     const data = {
       to: email, // Use the email variable from the request
-      text: 'hey user',
-      subject: 'forgot password link',
+      text: "hey user",
+      subject: "forgot password link",
       htm: resetUrl,
     };
     console.log(data);
@@ -356,34 +357,275 @@ const forgotpasswordtoken = async (req, res) => {
   } catch (err) {
     res.json(err);
   }
-}
+};
 
-const resetpassword = async(req,res)=>{
+const resetpassword = async (req, res) => {
+  const password = req.body.password;
+  const token = req.params.token;
+
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+  0;
+  const user = await con.findOne({
+    passwordResetToken: hashedToken,
+    // passwordResetExpires: { $gt: Date.now() },
+  });
+
+  if (!user) res.json("Token Expired, Please try again later");
+
+  user.password = password;
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+  await user.save();
+  res.json(user);
+};
+
+const saveaddress = async (req, res) => {
+  const id = req.userData;
+  const address = req.body.address;
+
+  try {
+    const finduser = await con.findByIdAndUpdate(id, {
+      address: address,
+    });
+
+    res.json(finduser);
+  } catch {
+    res.json({
+      message: "some error occured",
+    });
+  }
+};
+
+const getwishlist = async (req, res) => {
+  const id = req.userData;
+
+  try {
+    const data = await con.findById(id).populate("wishlist");
+    res.json(data);
+  } catch {
+    res.json({
+      message: "could not find",
+    });
+  }
+};
+
+const usercart = async (req, res) => {
+  try {
+    const id = req.userData;
+
+    const { cart } = req.body;
+
+    let products = [];
+
+    const user = await con.findById(id);
+
+    const alreadyExistCart = await Cart.findOne({ orderby: user._id });
+
+    if (alreadyExistCart) {
+      await Cart.deleteOne({ orderby: user._id });
+    }
+
+    for (let i = 0; i < cart.length; i++) {
+      let object = {};
+
+      object.product = cart[i]._id;
+      object.count = cart[i].count;
+      object.color = cart[i].color;
+      let getPrice = await Product.findById(cart[i]._id).select("price").exec();
+      object.price = getPrice.price;
+      products.push(object);
+    }
+
+    let carttotal = 0;
+    for (let i = 0; i < products.length; i++) {
+      carttotal += products[i].count * products[i].price;
+    }
+
+    const newcart = await new Cart({
+      products,
+      carttotal,
+      orderby: user._id,
+    }).save();
+
+    res.json(newcart);
+  } catch {
+    res.json({
+      message: "some error occured",
+    });
+  }
+};
+
+const getusercart = async (req, res) => {
+  const id = req.userData;
+  try {
+    const usercart = await Cart.findOne({ orderby: id }).populate(
+      "products.product"
+    );
+    res.json(usercart);
+  } catch {
+    res.json({
+      message: "some error occured",
+    });
+  }
+};
+
+const emptycart = async (req, res) => {
+  const id = req.userData;
+  try {
+    const usercart = await Cart.findOneAndRemove({ orderby: id });
+    res.json(usercart);
+  } catch {
+    res.json({
+      message: "some error occured",
+    });
+  }
+};
+
+const applycoupon = async (req, res) => {
+  const { coupon } = req.body;
+  const id = req.userData;
+
+  const validcoupon = await Coupon.findOne({ name: coupon });
+
+  if (validcoupon === null) {
+    res.json("invalid Coupon");
+  }
+
+  const user = await con.findById(id);
+
+  const { carttotal } = await Cart.findOne({ orderby: user._id });
+
+  let totalafterdiscount = (
+    parseFloat(carttotal) -
+    (parseFloat(carttotal) * parseFloat(validcoupon.discount)) / 100
+  ).toFixed(2);
+
+  await Cart.findOneAndUpdate({
+    orderby: user._id,
+    totalAfterDiscount: totalafterdiscount,
+  });
+
+  res.json(totalafterdiscount);
+};
 
 
-const password = req.body.password;
-const token = req.params.token;
+const createorder = async (req,res)=>{
 
-const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
-0
-const user = await con.findOne({
-  passwordResetToken: hashedToken,
-  // passwordResetExpires: { $gt: Date.now() },
-})
+  const id = req.userData;
+  const {COD,couponApplied} = req.body
+  try{
+
+  if(!COD){
+    res.json("Create cash order failed")
+  }
 
 
-if (!user) res.json("Token Expired, Please try again later");
-
-user.password = password;
-user.passwordResetToken = undefined;
-user.passwordResetExpires = undefined;
-await user.save();
-res.json(user);
+  const user = await con.findById(id);
  
+
+  const usercart = await Cart.findOne({ orderby: user._id });
+  
+
+  
+  let finalamount = 0;
+  if(couponApplied && usercart.totalAfterDiscount)
+  {
+    finalamount = usercart.totalAfterDiscount
+  }
+  else{
+    finalamount = usercart.carttotal; 
+  }
+
+  const neworder = await new order({
+    products:  usercart.products,
+    paymentIntent: {
+      id: uniqid(),
+      method: "COD",
+      amount: finalamount,
+      status: "Cash on Delivery",
+      created: Date.now(),
+      currency: "usd",
+    },
+    orderby: user._id,
+    orderStatus: "Cash on Delivery",
+  }).save();
+  
+
+  let update = usercart.products.map((item) => {
+    return {
+      updateOne: {
+        filter: { _id: item.product._id },
+        update: { $inc: { quantity: -item.count, sold: +item.count } },
+      },
+    };
+  });
+
+  let updated = await Product.bulkWrite(update, {});
+
+  res.json({ message: "success" });
+}catch
+{
+  res.json("Some error occured")
+}
 }
 
 
+const getorder = async (req,res)=>{
 
+    const id = req.userData;
+
+    try{
+
+       const user = await con.findById(id)     
+       const getorder = await order.findOne({ orderby: user._id })
+       res.json(getorder);
+ 
+    }catch{
+      res.json({
+        message: "something went wrong"
+      })
+    }
+}
+
+
+const getallorders = async(req,res)=>{
+
+  try{
+
+    const getallorder = await order.find();
+    res.json(getallorder);
+  }catch{
+  res.json({
+    message: "something went wrong to get all order data"
+  })
+}
+}
+
+
+const updateorder = async(req,res)=>{
+
+  const {status} = req.body
+  const id = req.params.id;
+
+  try{
+
+    
+    const updateorder = await order.findByIdAndUpdate(id,{
+            
+      orderStatus: status,
+      paymentIntent: {
+        status: status
+      }
+    }) 
+    res.json(updateorder);
+
+  }catch{   
+     res.json({
+      message: "something went wrong"
+     })
+  }
+
+}
 
 
 
@@ -400,5 +642,16 @@ module.exports = {
   logout,
   updatepassword,
   forgotpasswordtoken,
-  resetpassword
+  resetpassword,
+  getwishlist,
+  saveaddress,
+  usercart,
+  getusercart,
+  emptycart,
+  applycoupon,
+  createorder,
+  getorder,
+  getallorders,
+  updateorder,
+
 };

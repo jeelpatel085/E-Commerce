@@ -17,7 +17,17 @@ const {createuser,
        logout,
        updatepassword,
        forgotpasswordtoken,
-       resetpassword} = require('../controller/userctrl');
+       resetpassword,
+       getwishlist,
+       saveaddress,
+       usercart,
+       getusercart,
+       emptycart,
+       applycoupon,
+       createorder,
+       getorder,
+       getallorders,
+       updateorder} = require('../controller/userctrl');
 
 
 router.post('/registration',createuser)
@@ -33,10 +43,18 @@ router.put('/updatepassword',checktoken,updatepassword)
 router.put('/forgotpasswordtoken',forgotpasswordtoken)
 router.put('/reset-password/:token',resetpassword)
 router.get('/logout',logout)
+router.get('/getwishlist',checktoken,getwishlist)
+router.post('/saveaddress',checktoken,saveaddress)
+router.post('/cart',checktoken,usercart)  // in this function does not work the delete method check it later
+router.get('/getusercart',checktoken,getusercart)  
+router.post('/applycoupon',checktoken,applycoupon)  
+router.delete('/emptycart',checktoken,emptycart)  
+router.post('/createorder',checktoken,createorder)  
+router.get('/getorder',checktoken,getorder)
+router.get('/getallorder',checktoken,getallorders)
+router.put('/updateorder/:id',checktoken,updateorder)
 
 
 
 
-
-
-module.exports = router;    
+module.exports = router;
